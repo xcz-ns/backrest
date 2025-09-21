@@ -39,14 +39,7 @@ import { OperationStatus } from "../../gen/ts/v1/operations_pb";
 import { isMobile } from "../lib/browserutil";
 import { useNavigate } from "react-router";
 import { toJsonString } from "@bufbuild/protobuf";
-import { ConfigSchema, Multihost } from "../../gen/ts/v1/config_pb";
-import {
-  subscribeToPeerStates,
-  unsubscribeFromPeerStates,
-} from "../state/peerstates";
-import { PeerState } from "../../gen/ts/v1/syncservice_pb";
-import { PeerStateConnectionStatusIcon } from "../components/SyncStateIcon";
-import { last } from "lodash";
+import { ConfigSchema } from "../../gen/ts/v1/config_pb";
 
 export const SummaryDashboard = () => {
   const config = useConfig()[0];
@@ -57,9 +50,9 @@ export const SummaryDashboard = () => {
     useState<SummaryDashboardResponse | null>();
 
   useEffect(() => {
-    // Fetch summary data
+    // 获取汇总数据
     const fetchData = async () => {
-      // check if the tab is in the foreground
+      // 检查标签页是否处于前台
       if (document.hidden) {
         return;
       }
@@ -68,18 +61,14 @@ export const SummaryDashboard = () => {
         const data = await backrestService.getSummaryDashboard({});
         setSummaryData(data);
       } catch (e) {
-        alertApi.error("Failed to fetch summary data: " + e);
+        alertApi.error("获取汇总数据失败: " + e);
       }
     };
 
     fetchData();
 
-    document.addEventListener("visibilitychange", fetchData);
     const interval = setInterval(fetchData, 60000);
-    return () => {
-      document.removeEventListener("visibilitychange", fetchData);
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -87,58 +76,48 @@ export const SummaryDashboard = () => {
       return;
     }
 
-    if (
-      config.repos.length === 0 &&
-      config.plans.length === 0 &&
-      config.multihost?.knownHosts.length === 0 &&
-      config.multihost?.authorizedClients.length === 0
-    ) {
+    if (config.repos.length === 0 && config.plans.length === 0) {
       navigate("/getting-started");
     }
   }, [config]);
 
   if (!summaryData) {
-    return <Spin className="summary-dashboard-spin" />;
+    return <Spin />;
   }
 
   return (
     <>
       <Flex gap={16} vertical>
-        {/* Multihost summary if any available */}
-        <MultihostSummary multihostConfig={config?.multihost || null} />
-
-        {/* Repos and plans section */}
-        <Typography.Title level={3}>Repos</Typography.Title>
+        <Typography.Title level={3}>代码仓库</Typography.Title>
         {summaryData && summaryData.repoSummaries.length > 0 ? (
           summaryData.repoSummaries.map((summary) => (
             <SummaryPanel summary={summary} key={summary.id} />
           ))
         ) : (
-          <Empty description="No repos found" />
+          <Empty description="未找到任何代码仓库" />
         )}
-        <Typography.Title level={3}>Plans</Typography.Title>
+        <Typography.Title level={3}>计划</Typography.Title>
         {summaryData && summaryData.planSummaries.length > 0 ? (
           summaryData.planSummaries.map((summary) => (
             <SummaryPanel summary={summary} key={summary.id} />
           ))
         ) : (
-          <Empty description="No plans found" />
+          <Empty description="未找到任何计划" />
         )}
-
-        {/* System Info Section */}
-        <Typography.Title level={3}>System Info</Typography.Title>
+        <Divider />
+        <Typography.Title level={3}>系统信息</Typography.Title>
         <Descriptions
           layout="vertical"
           column={2}
           items={[
             {
               key: 1,
-              label: "Config Path",
+              label: "配置文件路径",
               children: summaryData.configPath,
             },
             {
               key: 2,
-              label: "Data Directory",
+              label: "数据目录",
               children: summaryData.dataPath,
             },
           ]}
@@ -147,7 +126,7 @@ export const SummaryDashboard = () => {
           size="small"
           items={[
             {
-              label: "Config as JSON",
+              label: "配置内容（JSON格式）",
               children: (
                 <pre>
                   {config &&
@@ -208,15 +187,15 @@ const SummaryPanel = ({
 
     return (
       <Card style={{ opacity: 0.9 }} size="small" key={label}>
-        <Typography.Text>Backup at {formatTime(entry.time)}</Typography.Text>{" "}
+        <Typography.Text>备份时间：{formatTime(entry.time)}</Typography.Text>{" "}
         <br />
         {isPending ? (
           <Typography.Text type="secondary">
-            Scheduled, waiting.
+            已排程，等待中。
           </Typography.Text>
         ) : (
           <Typography.Text type="secondary">
-            Took {formatDuration(entry.durationMs)}, added{" "}
+            用时 {formatDuration(entry.durationMs)}，新增数据量{" "}
             {formatBytes(entry.bytesAdded)}
           </Typography.Text>
         )}
@@ -230,22 +209,22 @@ const SummaryPanel = ({
   cardInfo.push(
     {
       key: 1,
-      label: "Backups (30d)",
+      label: "备份情况（30天）",
       children: (
         <>
           {summary.backupsSuccessLast30days ? (
             <Typography.Text type="success" style={{ marginRight: "5px" }}>
-              {summary.backupsSuccessLast30days + ""} ok
+              {summary.backupsSuccessLast30days + ""} 成功
             </Typography.Text>
           ) : undefined}
           {summary.backupsFailed30days ? (
             <Typography.Text type="danger" style={{ marginRight: "5px" }}>
-              {summary.backupsFailed30days + ""} failed
+              {summary.backupsFailed30days + ""} 失败
             </Typography.Text>
           ) : undefined}
           {summary.backupsWarningLast30days ? (
             <Typography.Text type="warning" style={{ marginRight: "5px" }}>
-              {summary.backupsWarningLast30days + ""} warning
+              {summary.backupsWarningLast30days + ""} 警告
             </Typography.Text>
           ) : undefined}
         </>
@@ -253,34 +232,34 @@ const SummaryPanel = ({
     },
     {
       key: 2,
-      label: "Bytes Scanned (30d)",
+      label: "扫描数据量（30天）",
       children: formatBytes(Number(summary.bytesScannedLast30days)),
     },
     {
       key: 3,
-      label: "Bytes Added (30d)",
+      label: "新增数据量（30天）",
       children: formatBytes(Number(summary.bytesAddedLast30days)),
     }
   );
 
-  // check if mobile layout
+  // 判断是否为移动端布局
   if (!isMobile()) {
     cardInfo.push(
       {
         key: 4,
-        label: "Next Scheduled Backup",
+        label: "下次计划备份时间",
         children: summary.nextBackupTimeMs
           ? formatTime(Number(summary.nextBackupTimeMs))
-          : "None Scheduled",
+          : "无计划",
       },
       {
         key: 5,
-        label: "Bytes Scanned Avg",
+        label: "平均扫描数据量",
         children: formatBytes(Number(summary.bytesScannedAvg)),
       },
       {
         key: 6,
-        label: "Bytes Added Avg",
+        label: "平均新增数据量",
         children: formatBytes(Number(summary.bytesAddedAvg)),
       }
     );
@@ -312,156 +291,5 @@ const SummaryPanel = ({
         </Col>
       </Row>
     </Card>
-  );
-};
-
-const MultihostSummary = ({
-  multihostConfig,
-}: {
-  multihostConfig: Multihost | null;
-}) => {
-  const [peerStates, setPeerStates] = useState<Map<string, PeerState>>(
-    new Map()
-  );
-
-  useEffect(() => {
-    const cb = (syncStates: PeerState[]) => {
-      setPeerStates((prev) => {
-        const updated = new Map(prev);
-        for (const state of syncStates) {
-          updated.set(state.peerKeyid, state);
-        }
-        return updated;
-      });
-    };
-    subscribeToPeerStates(cb);
-    return () => {
-      unsubscribeFromPeerStates(cb);
-    };
-  }, []);
-
-  const knownHostTiles: JSX.Element[] = [];
-  for (const cfgPeer of multihostConfig?.knownHosts || []) {
-    const peerState = peerStates.get(cfgPeer.keyid);
-    if (!peerState) {
-      continue;
-    }
-    knownHostTiles.push(
-      <PeerStateTile peerState={peerState} key={peerState.peerKeyid} />
-    );
-  }
-
-  const authorizedClientTiles: JSX.Element[] = [];
-  for (const cfgPeer of multihostConfig?.authorizedClients || []) {
-    const peerState = peerStates.get(cfgPeer.keyid);
-    if (!peerState) {
-      continue;
-    }
-    authorizedClientTiles.push(
-      <PeerStateTile peerState={peerState} key={peerState.peerKeyid} />
-    );
-  }
-
-  return (
-    <>
-      {knownHostTiles.length > 0 ? (
-        <>
-          <Typography.Title level={3}>Remote Hosts</Typography.Title>
-          <Flex gap={16} vertical>
-            {knownHostTiles}
-          </Flex>
-        </>
-      ) : null}
-      {authorizedClientTiles.length > 0 ? (
-        <>
-          <Typography.Title level={3}>Remote Clients</Typography.Title>
-          <Flex gap={16} vertical>
-            {authorizedClientTiles}
-          </Flex>
-        </>
-      ) : null}
-    </>
-  );
-};
-
-const PeerStateTile = ({ peerState }: { peerState: PeerState }) => {
-  const state = useState(1);
-  useEffect(() => {
-    // Force rerender every second to update the last heartbeat time
-    const interval = setInterval(() => {
-      state[1]((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [peerState.peerKeyid, peerState.lastHeartbeatMillis, state[1]]);
-
-  return (
-    <Card
-      key={peerState.peerKeyid}
-      title={
-        <>
-          {peerState.peerInstanceId}
-          <div
-            style={{
-              position: "absolute",
-              top: "8px",
-              right: "8px",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
-            <PeerStateConnectionStatusIcon peerState={peerState} />
-          </div>
-        </>
-      }
-      style={{ marginBottom: "16px" }}
-    >
-      <Descriptions
-        layout="vertical"
-        column={2}
-        items={[
-          {
-            key: 1,
-            label: "Instance ID",
-            children: peerState.peerInstanceId,
-          },
-          {
-            key: 2,
-            label: "Public Key ID",
-            children: peerState.peerKeyid,
-          },
-          {
-            key: 3,
-            label: "Last State Update",
-            children: (
-              <TimeSinceLastHeartbeat
-                lastHeartbeatMillis={Number(peerState.lastHeartbeatMillis)}
-              />
-            ),
-          },
-        ]}
-      />
-    </Card>
-  );
-};
-
-const TimeSinceLastHeartbeat = ({
-  lastHeartbeatMillis,
-}: {
-  lastHeartbeatMillis: number;
-}) => {
-  const [timeSince, setTimeSince] = useState(
-    lastHeartbeatMillis ? Date.now() - lastHeartbeatMillis : 0
-  );
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimeSince(Date.now() - lastHeartbeatMillis);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [lastHeartbeatMillis]);
-
-  return (
-    formatTime(lastHeartbeatMillis) + " (" + formatDuration(timeSince) + " ago)"
   );
 };

@@ -12,68 +12,57 @@ export const GettingStartedGuide = () => {
   return (
     <>
       <Typography.Text>
-        <h1>Getting Started</h1>
-        {/* open link in new tab */}
+        <h1>入门指南</h1>
+        {/* 链接在新标签页打开 */}
         <p>
-          <a href="https://github.com/garethgeorge/backrest" target="_blank">
-            Check for new Backrest releases on GitHub
+          <a href="https://github.com/garethgeorge/backrest"  target="_blank">
+            在GitHub上查看Backrest的新版本
           </a>
         </p>
-        <Divider orientation="left">Overview</Divider>
+        <Divider orientation="left">概述</Divider>
         <ul>
           <li>
-            Repos map directly to restic repositories, start by configuring your
-            backup locations.
+            仓库直接对应restic仓库，请先配置备份位置。
           </li>
           <li>
-            Plans are where you configure directories to backup, and backup
-            scheduling. Multiple plans can backup to a single restic repository.
+            计划用于配置备份目录和备份调度。多个计划可以备份到同一个restic仓库。
           </li>
           <li>
-            See{" "}
+            请查看{" "}
             <a
-              href="https://restic.readthedocs.io/en/latest/030_preparing_a_new_repo.html"
+              href="https://restic.readthedocs.io/en/latest/030_preparing_a_new_repo.html" 
               target="_blank"
             >
-              the restic docs on preparing a new repository
+              restic官方文档关于仓库准备
             </a>{" "}
-            for details about available repository types and how they can be
-            configured.
+            了解支持的仓库类型及其配置方法。
           </li>
           <li>
-            See{" "}
-            <a href="https://garethgeorge.github.io/backrest" target="_blank">
-              the Backrest wiki
+            请查看{" "}
+            <a href="https://garethgeorge.github.io/backrest"  target="_blank">
+              Backrest维基文档
             </a>{" "}
-            for instructions on how to configure Backrest.
+            获取Backrest配置指南。
           </li>
         </ul>
-        <Divider orientation="left">Tips</Divider>
+        <Divider orientation="left">提示</Divider>
         <ul>
           <li>
-            Backup your Backrest configuration: your Backrest config holds all
-            of your repos, plans, and the passwords to decrypt them. When you
-            have Backrest configured to your liking make sure to store a copy of
-            your config (or minimally a copy of your passwords) in a safe
-            location e.g. a secure note in your password manager.
+            备份Backrest配置：您的Backrest配置包含所有仓库、计划和解密密码。配置完成后，请务必将配置文件（或至少密码副本）存储在安全位置（例如密码管理器中的安全笔记）。
           </li>
           <li>
-            Configure hooks: Backrest can deliver notifications about backup
-            events. It's strongly recommended that you configure an on error
-            hook that will notify you in the event that backups start failing
-            (e.g. an issue with storage or network connectivity). Hooks can be
-            configured either at the plan or repo level.
+            配置钩子：Backrest可以推送备份事件通知。强烈建议您配置错误通知钩子，以便在备份失败时（如存储或网络问题）及时收到通知。钩子可在计划或仓库层级配置。
           </li>
         </ul>
         {isDevBuild && (
           <>
-            <Divider orientation="left">Config View</Divider>
+            <Divider orientation="left">配置查看</Divider>
             <Collapse
               size="small"
               items={[
                 {
                   key: "1",
-                  label: "Config JSON hidden for security",
+                  label: "配置JSON因安全原因隐藏",
                   children: config ? (
                     <Typography>
                       <pre>

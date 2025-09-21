@@ -24,7 +24,7 @@ export const RepoView = ({ repo }: React.PropsWithChildren<{ repo: Repo }>) => {
   const showModal = useShowModal();
   const alertsApi = useAlertApi()!;
 
-  // Task handlers
+  // 任务处理函数
   const handleIndexNow = async () => {
     try {
       await backrestService.doRepoTask(
@@ -34,22 +34,22 @@ export const RepoView = ({ repo }: React.PropsWithChildren<{ repo: Repo }>) => {
         })
       );
     } catch (e: any) {
-      alertsApi.error(formatErrorAlert(e, "Failed to index snapshots: "));
+      alertsApi.error(formatErrorAlert(e, "快照索引失败："));
     }
   };
 
   const handleUnlockNow = async () => {
     try {
-      alertsApi.info("Unlocking repo...");
+      alertsApi.info("正在解锁仓库...");
       await backrestService.doRepoTask(
         create(DoRepoTaskRequestSchema, {
           repoId: repo.id!,
           task: DoRepoTaskRequest_Task.UNLOCK,
         })
       );
-      alertsApi.success("Repo unlocked.");
+      alertsApi.success("仓库已解锁");
     } catch (e: any) {
-      alertsApi.error("Failed to unlock repo: " + e.message);
+      alertsApi.error("仓库解锁失败：" + e.message);
     }
   };
 
@@ -62,7 +62,7 @@ export const RepoView = ({ repo }: React.PropsWithChildren<{ repo: Repo }>) => {
         })
       );
     } catch (e: any) {
-      alertsApi.error(formatErrorAlert(e, "Failed to compute stats: "));
+      alertsApi.error(formatErrorAlert(e, "统计计算失败："));
     }
   };
 
@@ -75,7 +75,7 @@ export const RepoView = ({ repo }: React.PropsWithChildren<{ repo: Repo }>) => {
         })
       );
     } catch (e: any) {
-      alertsApi.error(formatErrorAlert(e, "Failed to prune: "));
+      alertsApi.error(formatErrorAlert(e, "清理操作失败："));
     }
   };
 
@@ -88,26 +88,27 @@ export const RepoView = ({ repo }: React.PropsWithChildren<{ repo: Repo }>) => {
         })
       );
     } catch (e: any) {
-      alertsApi.error(formatErrorAlert(e, "Failed to check: "));
+      alertsApi.error(formatErrorAlert(e, "检查操作失败："));
     }
   };
 
-  // Gracefully handle deletions by checking if the plan is still in the config.
+  // 检查仓库是否仍在配置中
   let repoInConfig = config?.repos?.find((r) => r.id === repo.id);
   if (!repoInConfig) {
     return (
       <>
-        Repo was deleted
+        仓库已被删除
         <pre>{JSON.stringify(config, null, 2)}</pre>
       </>
     );
   }
   repo = repoInConfig;
 
+  // 选项卡配置
   const items = [
     {
       key: "1",
-      label: "Tree View",
+      label: "树状视图",
       children: (
         <>
           <OperationTreeView
@@ -120,14 +121,14 @@ export const RepoView = ({ repo }: React.PropsWithChildren<{ repo: Repo }>) => {
           />
         </>
       ),
-      destroyOnHidden: true,
+      destroyInactiveTabPane: true,
     },
     {
       key: "2",
-      label: "List View",
+      label: "列表视图",
       children: (
         <>
-          <h3>Backup Action History</h3>
+          <h3>备份操作历史</h3>
           <OperationListView
             req={create(GetOperationsRequestSchema, {
               selector: {
@@ -140,13 +141,13 @@ export const RepoView = ({ repo }: React.PropsWithChildren<{ repo: Repo }>) => {
           />
         </>
       ),
-      destroyOnHidden: true,
+      destroyInactiveTabPane: true,
     },
     {
       key: "3",
-      label: "Stats",
+      label: "统计信息",
       children: (
-        <Suspense fallback={<div>Loading...</div>}>
+        <Suspense fallback={<div>加载中...</div>}>
           <StatsPanel
             selector={create(OpSelectorSchema, {
               repoGuid: repo.guid,
@@ -155,16 +156,18 @@ export const RepoView = ({ repo }: React.PropsWithChildren<{ repo: Repo }>) => {
           />
         </Suspense>
       ),
-      destroyOnHidden: true,
+      destroyInactiveTabPane: true,
     },
   ];
+
   return (
     <>
       <Flex gap="small" align="center" wrap="wrap">
         <Typography.Title>{repo.id}</Typography.Title>
       </Flex>
       <Flex gap="small" align="center" wrap="wrap">
-        <Tooltip title="Advanced users: open a restic shell to run commands on the repository. Re-index snapshots to reflect any changes in Backrest.">
+        {/* 高级操作按钮 */}
+        <Tooltip title="高级用户：打开restic命令行执行仓库操作。修改后需重新索引快照以在Backrest中生效">
           <Button
             type="default"
             onClick={async () => {
@@ -172,37 +175,37 @@ export const RepoView = ({ repo }: React.PropsWithChildren<{ repo: Repo }>) => {
               showModal(<RunCommandModal repo={repo} />);
             }}
           >
-            Run Command
+            运行命令
           </Button>
         </Tooltip>
 
-        <Tooltip title="Indexes the snapshots in the repository. Snapshots are also indexed automatically after each backup.">
+        <Tooltip title="索引仓库中的快照。每次备份后也会自动执行快照索引">
           <SpinButton type="default" onClickAsync={handleIndexNow}>
-            Index Snapshots
+            索引快照
           </SpinButton>
         </Tooltip>
 
-        <Tooltip title="Removes lockfiles and checks the repository for errors. Only run if you are sure the repo is not being accessed by another system">
+        <Tooltip title="移除锁文件并检查仓库错误。请确保仓库未被其他系统访问时执行">
           <SpinButton type="default" onClickAsync={handleUnlockNow}>
-            Unlock Repo
+            解锁仓库
           </SpinButton>
         </Tooltip>
 
-        <Tooltip title="Runs a prune operation on the repository that will remove old snapshots and free up space">
+        <Tooltip title="对仓库执行清理操作，移除旧快照并释放空间">
           <SpinButton type="default" onClickAsync={handlePruneNow}>
-            Prune Now
+            立即清理
           </SpinButton>
         </Tooltip>
 
-        <Tooltip title="Runs a check operation on the repository that will verify the integrity of the repository">
+        <Tooltip title="验证仓库完整性">
           <SpinButton type="default" onClickAsync={handleCheckNow}>
-            Check Now
+            立即检查
           </SpinButton>
         </Tooltip>
 
-        <Tooltip title="Runs restic stats on the repository, this may be a slow operation">
+        <Tooltip title="对仓库执行统计计算（可能耗时较长）">
           <SpinButton type="default" onClickAsync={handleStatsNow}>
-            Compute Stats
+            计算统计
           </SpinButton>
         </Tooltip>
       </Flex>

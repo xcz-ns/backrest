@@ -12,12 +12,7 @@ import {
 } from "antd";
 import _, { flow } from "lodash";
 import { DataNode } from "antd/es/tree";
-import {
-  formatDate,
-  formatMonth,
-  formatTime,
-  localISOTime,
-} from "../lib/formatting";
+import { formatDate, formatTime, localISOTime } from "../lib/formatting";
 import { ExclamationOutlined, QuestionOutlined } from "@ant-design/icons";
 import {
   OperationEventType,
@@ -45,11 +40,9 @@ import { OperationIcon } from "./OperationIcon";
 import { shouldHideOperation } from "../state/oplog";
 import { create, toJsonString } from "@bufbuild/protobuf";
 import { useConfig } from "./ConfigProvider";
-
 type OpTreeNode = DataNode & {
   backup?: FlowDisplayInfo;
 };
-
 export const OperationTreeView = ({
   req,
   isPlanView,
@@ -62,8 +55,7 @@ export const OperationTreeView = ({
   const setScreenWidth = useState(window.innerWidth)[1];
   const [backups, setBackups] = useState<FlowDisplayInfo[]>([]);
   const [selectedBackupId, setSelectedBackupId] = useState<bigint | null>(null);
-
-  // track the screen width so we can switch between mobile and desktop layouts.
+  // 跟踪屏幕宽度以切换移动和桌面布局
   useEffect(() => {
     const handleResize = () => {
       setScreenWidth(window.innerWidth);
@@ -73,15 +65,11 @@ export const OperationTreeView = ({
       window.removeEventListener("resize", handleResize);
     };
   }, []);
-
-  // track backups for this operation tree view.
+  // 跟踪此操作树视图的备份
   useEffect(() => {
     setSelectedBackupId(null);
-
     const logState = new OplogState((op) => !shouldHideOperation(op));
-
     const backupInfoByFlowID = new Map<bigint, FlowDisplayInfo>();
-
     logState.subscribe((ids, flowIDs, event) => {
       if (
         event === OperationEventType.EVENT_CREATED ||
@@ -90,10 +78,9 @@ export const OperationTreeView = ({
         for (const flowID of flowIDs) {
           const ops = logState.getByFlowID(flowID);
           if (!ops || ops[0].op.case === "operationRunHook") {
-            // sometimes hook operations become awkwardly orphaned. These are ignored.
+            // 有时钩子操作会变得孤立，这些会被忽略
             continue;
           }
-
           const displayInfo = displayInfoForFlow(ops);
           if (!displayInfo.hidden) {
             backupInfoByFlowID.set(flowID, displayInfo);
@@ -106,30 +93,23 @@ export const OperationTreeView = ({
           backupInfoByFlowID.delete(flowID);
         }
       }
-
       setBackups([...backupInfoByFlowID.values()]);
     });
-
     return syncStateFromRequest(logState, req, (err) => {
-      alertApi!.error("API error: " + err.message);
+      alertApi!.error("API错误: " + err.message);
     });
   }, [toJsonString(GetOperationsRequestSchema, req)]);
-
   if (backups.length === 0) {
     return (
-      <Empty description={""} image={Empty.PRESENTED_IMAGE_SIMPLE}></Empty>
+      <Empty description="" image={Empty.PRESENTED_IMAGE_SIMPLE}></Empty>
     );
   }
-
   const useMobileLayout = isMobile();
-
   const backupsByInstance = _.groupBy(backups, (b) => {
     return b.instanceID;
   });
-
   let primaryTree: React.ReactNode | null = null;
   const otherTrees: React.ReactNode[] = [];
-
   for (const instance of Object.keys(backupsByInstance)) {
     const instanceBackups = backupsByInstance[instance];
     const instTree = (
@@ -139,21 +119,20 @@ export const OperationTreeView = ({
         onSelect={(flow) => {
           setSelectedBackupId(flow ? flow.flowID : null);
         }}
+        expand={instance === config!.instance}
       />
     );
-
     if (instance === config!.instance) {
       primaryTree = instTree;
     } else {
       otherTrees.push(
-        <div key={instance} style={{ marginTop: "20px" }}>
+        <>
           <Typography.Title level={4}>{instance}</Typography.Title>
           {instTree}
-        </div>
+        </>
       );
     }
   }
-
   let displayTree: React.ReactNode;
   if (otherTrees.length > 0) {
     displayTree = (
@@ -166,7 +145,6 @@ export const OperationTreeView = ({
   } else {
     displayTree = primaryTree;
   }
-
   if (useMobileLayout) {
     const backup = backups.find((b) => b.flowID === selectedBackupId);
     return (
@@ -185,7 +163,6 @@ export const OperationTreeView = ({
       </>
     );
   }
-
   return (
     <Flex vertical gap="middle">
       <Splitter>
@@ -199,169 +176,152 @@ export const OperationTreeView = ({
                 backup={backups.find((b) => b.flowID === selectedBackupId)}
               />
             ) : null}
-          </BackupViewContainer>{" "}
+          </BackupViewContainer>
         </Splitter.Panel>
       </Splitter>
     </Flex>
   );
 };
-
-const treeLeafCache = new WeakMap<FlowDisplayInfo, OpTreeNode>();
 const DisplayOperationTree = ({
   operations,
   isPlanView,
   onSelect,
+  expand,
 }: {
   operations: FlowDisplayInfo[];
   isPlanView?: boolean;
   onSelect?: (flow: FlowDisplayInfo | null) => any;
+  expand?: boolean;
 }) => {
-  const [treeData, setTreeData] = useState<OpTreeNode[]>([]);
-  const [expandedKeys, setExpandedKeys] = useState<Set<React.Key>>(new Set());
-  const [defaultExpandedKeys, setDefaultExpandedKeys] = useState<
-    Set<React.Key>
-  >(new Set());
-
-  {
-    const expandFirstN = (
-      n: number,
-      nodes: OpTreeNode[],
-      expandedKeys: Set<React.Key>
-    ) => {
-      let added = 0;
-      for (let i = 0; i < n && i < nodes.length; i++) {
-        expandedKeys.add(nodes[i].key);
-        if (nodes[i].isLeaf) {
-          added++;
+  const [treeData, setTreeData] = useState<{
+    tree: OpTreeNode[];
+    expanded: React.Key[];
+  }>({ tree: [], expanded: [] });
+  useEffect(() => {
+    const cancel = setTimeout(
+      () => {
+        const { tree, expanded } = buildTree(operations, isPlanView || false);
+        setTreeData({ tree, expanded });
+      },
+      treeData && treeData.tree.length > 0 ? 100 : 0
+    );
+    return () => {
+      clearTimeout(cancel);
+    };
+  }, [operations]);
+  if (treeData.tree.length === 0) {
+    return <></>;
+  }
+  return (
+    <Tree<OpTreeNode>
+      treeData={treeData.tree}
+      showIcon
+      defaultExpandedKeys={expand ? treeData.expanded : []}
+      onSelect={(keys, info) => {
+        if (info.selectedNodes.length === 0) return;
+        const backup = info.selectedNodes[0].backup;
+        onSelect && onSelect(backup || null);
+      }}
+      titleRender={(node: OpTreeNode): React.ReactNode => {
+        if (node.title !== undefined) {
+          return node.title as React.ReactNode;
         }
-        if (nodes[i].children) {
-          added += expandFirstN(n - added, nodes[i].children!, expandedKeys);
+        if (node.backup !== undefined) {
+          const b = node.backup;
+          return (
+            <>
+              {displayTypeToString(b.type)} {formatTime(b.displayTime)}{" "}
+              {b.subtitleComponents && b.subtitleComponents.length > 0 && (
+                <span className="backrest operation-details">
+                  [{b.subtitleComponents.join(", ")}]
+                </span>
+              )}
+            </>
+          );
         }
-        if (added >= n) {
-          break;
-        }
+        return (
+          <span>错误：此元素不应出现，这是个bug。</span>
+        );
+      }}
+    />
+  );
+};
+const treeLeafCache = new WeakMap<FlowDisplayInfo, OpTreeNode>();
+const buildTree = (
+  operations: FlowDisplayInfo[],
+  isForPlanView: boolean
+): { tree: OpTreeNode[]; expanded: React.Key[] } => {
+  const buildTreeInstanceID = (operations: FlowDisplayInfo[]): OpTreeNode[] => {
+    const grouped = _.groupBy(operations, (op) => {
+      return op.instanceID;
+    });
+    const entries: OpTreeNode[] = _.map(grouped, (value, key) => {
+      let title: React.ReactNode = key;
+      if (title === "_unassociated_") {
+        title = (
+          <Tooltip title="_unassociated_ 实例ID收集未指定created-by标签的操作，该标签表示创建它们的backrest安装。">
+            _unassociated_
+          </Tooltip>
+        );
       }
-      return added;
-    };
-
-    const createTreeLevel = (
-      groupingFn: (op: FlowDisplayInfo) => string,
-      nodeFn: (groupKey: string, ops: FlowDisplayInfo[]) => OpTreeNode,
-      sortFn: (op1: FlowDisplayInfo, op2: FlowDisplayInfo) => boolean,
-      operations: FlowDisplayInfo[],
-      expandedKeys: Set<React.Key>,
-      keyPrefix: string = ""
-    ) => {
-      const groups = _.groupBy(operations, groupingFn);
-      const treeData: OpTreeNode[] = [];
-
-      const sortedGroupKeys = Object.keys(groups).sort((a, b) => {
-        const opsA = groups[a];
-        const opsB = groups[b];
-        return sortFn(opsA[0], opsB[0]) ? -1 : 1;
-      });
-
-      sortedGroupKeys.forEach((key) => {
-        const ops = groups[key];
-        const groupKey = keyPrefix + "\0" + key;
-        const node = nodeFn(groupKey, ops);
-        treeData.push(node);
-      });
-
-      return treeData;
-    };
-
-    interface treeSpec {
-      levels: {
-        groupingFn: (op: FlowDisplayInfo) => string;
-        titleFn: (exemplar: FlowDisplayInfo) => React.ReactNode;
-        sortFn: (op1: FlowDisplayInfo, op2: FlowDisplayInfo) => boolean;
-      }[];
-      leafGroupFn: (op: FlowDisplayInfo) => string;
-      leafFn: (groupKey: string, ops: FlowDisplayInfo[]) => OpTreeNode;
-      leafSortFn: (op1: FlowDisplayInfo, op2: FlowDisplayInfo) => boolean;
-    }
-
-    const createTree = (
-      operations: FlowDisplayInfo[],
-      spec: treeSpec,
-      expandedKeys: Set<React.Key>
-    ) => {
-      let levelFn = createTreeLevel.bind(
-        null,
-        spec.leafGroupFn,
-        (groupKey: string, ops: FlowDisplayInfo[]) =>
-          spec.leafFn(groupKey, ops),
-        spec.leafSortFn
-      );
-      const [finalLevelFn, foo] = spec.levels.reduceRight(
-        ([fn, childGroupFn], level) => {
-          return [
-            createTreeLevel.bind(
-              null,
-              level.groupingFn,
-              (groupKey: string, ops: FlowDisplayInfo[]) => {
-                const exemplar = ops[0];
-                const children = ops.length;
-                const expanded = expandedKeys.has(groupKey);
-                return {
-                  key: groupKey,
-                  title: (
-                    <>
-                      <Typography.Text>
-                        {level.titleFn(exemplar)}
-                      </Typography.Text>
-                      {!expanded && (
-                        <Typography.Text
-                          type="secondary"
-                          style={{ fontSize: "12px", marginLeft: "8px" }}
-                        >
-                          {children === 1 ? "1 item" : `${children} items`}
-                        </Typography.Text>
-                      )}
-                    </>
-                  ),
-                  children: expanded
-                    ? fn(ops, expandedKeys, groupKey)
-                    : [{ key: groupKey + "_loading", title: "Loading..." }],
-                };
-              },
-              level.sortFn
-            ),
-            level.groupingFn,
-          ];
-        },
-        [levelFn, spec.leafGroupFn]
-      );
-      return finalLevelFn(operations, expandedKeys);
-    };
-
-    const planLayer = {
-      groupingFn: (op: FlowDisplayInfo) => op.planID,
-      titleFn: (exemplar: FlowDisplayInfo) => exemplar.planID,
-      sortFn: (op1: FlowDisplayInfo, op2: FlowDisplayInfo) =>
-        op1.planID < op2.planID,
-    };
-
-    const monthLayer = {
-      groupingFn: (op: FlowDisplayInfo) =>
-        localISOTime(op.displayTime).slice(0, 7),
-      titleFn: (exemplar: FlowDisplayInfo) => formatMonth(exemplar.displayTime),
-      sortFn: (op1: FlowDisplayInfo, op2: FlowDisplayInfo) =>
-        op1.displayTime > op2.displayTime,
-    };
-
-    const dayLayer = {
-      groupingFn: (op: FlowDisplayInfo) =>
-        localISOTime(op.displayTime).slice(0, 10),
-      titleFn: (exemplar: FlowDisplayInfo) => formatDate(exemplar.displayTime),
-      sortFn: (op1: FlowDisplayInfo, op2: FlowDisplayInfo) =>
-        op1.displayTime > op2.displayTime,
-    };
-
-    const leafGroupFn = (op: FlowDisplayInfo) => op.flowID.toString(16);
-    const leafFn = (groupKey: string, ops: FlowDisplayInfo[]) => {
-      const b = ops[0];
+      return {
+        title,
+        key: "i" + value[0].instanceID,
+        children: buildTreePlan(value),
+      };
+    });
+    entries.sort(sortByKeyReverse);
+    return entries;
+  };
+  const buildTreePlan = (operations: FlowDisplayInfo[]): OpTreeNode[] => {
+    const grouped = _.groupBy(operations, (op) => {
+      return op.planID;
+    });
+    const entries: OpTreeNode[] = _.map(grouped, (value, key) => {
+      let title: React.ReactNode = value[0].planID;
+      if (title === "_unassociated_") {
+        title = (
+          <Tooltip title="_unassociated_ 计划ID收集未指定plan标签的操作，该标签表示创建它们的备份计划。">
+            _unassociated_
+          </Tooltip>
+        );
+      } else if (title === "_system_") {
+        title = (
+          <Tooltip title="_system_ 计划ID收集与任何单个计划无关的健康操作，例如仓库级检查或清理运行。">
+            _system_
+          </Tooltip>
+        );
+      }
+      const uniqueKey = value[0].planID + "\x01" + value[0].instanceID + "\x01"; // 使用\x01作为分隔符
+      return {
+        key: uniqueKey,
+        title,
+        children: buildTreeDay(uniqueKey, value),
+      };
+    });
+    entries.sort(sortByKeyReverse);
+    return entries;
+  };
+  const buildTreeDay = (
+    keyPrefix: string,
+    operations: FlowDisplayInfo[]
+  ): OpTreeNode[] => {
+    const grouped = _.groupBy(operations, (op) => {
+      return localISOTime(op.displayTime).substring(0, 10);
+    });
+    const entries = _.map(grouped, (value, key) => {
+      const children = buildTreeLeaf(value);
+      return {
+        key: keyPrefix + key,
+        title: formatDate(value[0].displayTime),
+        children: children,
+      };
+    });
+    entries.sort(sortByKey);
+    return entries;
+  };
+  const buildTreeLeaf = (operations: FlowDisplayInfo[]): OpTreeNode[] => {
+    const entries = _.map(operations, (b): OpTreeNode => {
       let cached = treeLeafCache.get(b);
       if (cached) {
         return cached;
@@ -376,160 +336,97 @@ const DisplayOperationTree = ({
       } else {
         icon = <OperationIcon status={b.status} type={b.type} />;
       }
-
-      let newLeaf: OpTreeNode = {
-        key: groupKey,
+      let newLeaf = {
+        key: b.flowID,
         backup: b,
         icon: icon,
-        isLeaf: true,
       };
       treeLeafCache.set(b, newLeaf);
       return newLeaf;
-    };
-    const leafSortFn = (op1: FlowDisplayInfo, op2: FlowDisplayInfo) =>
-      op1.displayTime > op2.displayTime;
-
-    const planTreeSpec: treeSpec = {
-      levels: [planLayer, monthLayer, dayLayer],
-      leafGroupFn,
-      leafFn,
-      leafSortFn,
-    };
-
-    const dayTreeSpec: treeSpec = {
-      levels: [monthLayer, dayLayer],
-      leafGroupFn,
-      leafFn,
-      leafSortFn,
-    };
-
-    const expandOperation = (
-      treeSpec: treeSpec,
-      op: FlowDisplayInfo,
-      expandedKeys: Set<React.Key>
-    ) => {
-      let finalPrefix = treeSpec.levels.reduce((keyPrefix, level) => {
-        let groupKey = level.groupingFn(op);
-        let newKey = keyPrefix + "\0" + groupKey;
-        expandedKeys.add(newKey);
-        return newKey;
-      }, "");
-      let groupKey = treeSpec.leafGroupFn(op);
-      let newKey = finalPrefix + "\0" + groupKey;
-      expandedKeys.add(newKey);
-    };
-
-    useEffect(() => {
-      const timeoutId = setTimeout(() => {
-        let spec = isPlanView ? dayTreeSpec : planTreeSpec;
-        let expandedKeysCopy = new Set(expandedKeys);
-
-        // Do expansion passes, the algorithm is multipass since each pass may add new nodes eligible for expansion
-        // Bounded at 10 passes which should be deep enough for any tree layout backrest uses.
-        if (expandedKeys.size === 0) {
-          let prevExpanded = new Set<React.Key>();
-          const target = 5;
-          for (let i = 0; i < 10; i++) {
-            let newExpanded = new Set<React.Key>();
-            const added = expandFirstN(
-              target,
-              createTree(operations, spec, prevExpanded),
-              newExpanded
-            );
-            prevExpanded = newExpanded;
-            if (added >= target) {
-              break;
-            }
-          }
-          expandedKeysCopy = prevExpanded;
-          setExpandedKeys(expandedKeysCopy);
-        }
-
-        // Expand in-progress or pending operations.
-        for (let op of operations) {
-          if (
-            op.status === OperationStatus.STATUS_INPROGRESS ||
-            op.status === OperationStatus.STATUS_PENDING
-          ) {
-            expandOperation(planTreeSpec, op, expandedKeysCopy);
+    });
+    entries.sort((a, b) => {
+      return b.backup!.displayTime - a.backup!.displayTime;
+    });
+    return entries;
+  };
+  const expandTree = (
+    entries: OpTreeNode[],
+    budget: number,
+    d1: number,
+    d2: number
+  ) => {
+    let expanded: React.Key[] = [];
+    const h2 = (
+      entries: OpTreeNode[],
+      curDepth: number,
+      budget: number
+    ): number => {
+      if (curDepth >= d2) {
+        for (const entry of entries) {
+          expanded.push(entry.key);
+          budget--;
+          if (budget <= 0) {
+            break;
           }
         }
-        if (expandedKeysCopy.size > expandedKeys.size) {
-          setExpandedKeys(expandedKeysCopy);
+        return budget;
+      }
+      for (const entry of entries) {
+        if (!entry.children) continue;
+        budget = h2(entry.children, curDepth + 1, budget);
+        if (budget <= 0) {
+          break;
         }
-
-        setTreeData(createTree(operations, spec, expandedKeysCopy));
-      }, 10);
-      return () => clearTimeout(timeoutId);
-    }, [operations, expandedKeys]);
+      }
+      return budget;
+    };
+    const h1 = (entries: OpTreeNode[], curDepth: number) => {
+      if (curDepth >= d1) {
+        h2(entries, curDepth + 1, budget);
+        return;
+      }
+      for (const entry of entries) {
+        if (!entry.children) continue;
+        h1(entry.children, curDepth + 1);
+      }
+    };
+    h1(entries, 0);
+    return expanded;
+  };
+  let tree: OpTreeNode[];
+  let expanded: React.Key[];
+  if (isForPlanView) {
+    tree = buildTreeDay("", operations);
+    expanded = expandTree(tree, 5, 0, 2);
+  } else {
+    tree = buildTreePlan(operations);
+    expanded = expandTree(tree, 5, 1, 3);
   }
-
-  if (treeData.length === 0) {
-    return <></>;
-  }
-
-  return (
-    <Tree<OpTreeNode>
-      treeData={treeData}
-      showIcon
-      defaultExpandedKeys={Array.from(expandedKeys)}
-      onExpand={(expandedKeys) => {
-        setExpandedKeys(new Set(expandedKeys));
-      }}
-      expandedKeys={Array.from(expandedKeys)}
-      onSelect={(keys, info) => {
-        if (info.selectedNodes.length === 0) return;
-        const backup = info.selectedNodes[0].backup;
-        onSelect && onSelect(backup || null);
-      }}
-      titleRender={(node: OpTreeNode): React.ReactNode => {
-        if (node.title !== undefined) {
-          return node.title as React.ReactNode;
-        }
-        if (node.backup !== undefined) {
-          const b = node.backup;
-
-          return (
-            <>
-              <Typography.Text style={{ margin: 0, display: "inline" }}>
-                {displayTypeToString(b.type)} {formatTime(b.displayTime)}{" "}
-                {b.subtitleComponents && b.subtitleComponents.length > 0 && (
-                  <Typography.Text
-                    type="secondary"
-                    style={{
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    [{b.subtitleComponents.join(", ")}]
-                  </Typography.Text>
-                )}
-              </Typography.Text>
-            </>
-          );
-        }
-        return (
-          <span>ERROR: this element should not appear, this is a bug.</span>
-        );
-      }}
-    />
-  );
+  return { tree, expanded };
 };
-
+const sortByKey = (a: OpTreeNode, b: OpTreeNode) => {
+  if (a.key < b.key) {
+    return 1;
+  } else if (a.key > b.key) {
+    return -1;
+  }
+  return 0;
+};
+const sortByKeyReverse = (a: OpTreeNode, b: OpTreeNode) => {
+  return -sortByKey(a, b);
+};
 const BackupViewContainer = ({ children }: { children: React.ReactNode }) => {
   const ref = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const refresh = useState(0)[1];
   const [topY, setTopY] = useState(0);
   const [bottomY, setBottomY] = useState(0);
-
   useEffect(() => {
     if (!ref.current || !innerRef.current) {
       return;
     }
-
     let offset = 0;
-
-    // handle scroll events to keep the fixed container in view.
+    // 处理滚动事件以保持固定容器可见
     const handleScroll = () => {
       if (!ref.current) {
         return;
@@ -539,20 +436,16 @@ const BackupViewContainer = ({ children }: { children: React.ReactNode }) => {
       let topY = Math.max(ref.current!.getBoundingClientRect().top, 0);
       let bottomY = topY;
       if (topY == 0) {
-        // wiggle only if the top is actually the top edge of the screen.
+        // 如果顶部实际上是屏幕顶部，则应用抖动
         topY -= wiggle;
         bottomY += wiggle;
       }
-
       setTopY(topY);
       setBottomY(bottomY);
-
       refresh(Math.random());
     };
-
     window.addEventListener("scroll", handleScroll);
-
-    // attach resize observer to ref to update the width of the fixed container.
+    // 附加调整观察器以更新固定容器的宽度
     const resizeObserver = new ResizeObserver(() => {
       handleScroll();
     });
@@ -565,9 +458,7 @@ const BackupViewContainer = ({ children }: { children: React.ReactNode }) => {
       resizeObserver.disconnect();
     };
   }, [ref.current, innerRef.current]);
-
   const rect = ref.current?.getBoundingClientRect();
-
   return (
     <div
       ref={ref}
@@ -590,11 +481,10 @@ const BackupViewContainer = ({ children }: { children: React.ReactNode }) => {
     </div>
   );
 };
-
 const BackupView = ({ backup }: { backup?: FlowDisplayInfo }) => {
   const alertApi = useAlertApi();
   if (!backup) {
-    return <Empty description="Backup not found." />;
+    return <Empty description="未找到备份。" />;
   } else {
     const doDeleteSnapshot = async () => {
       try {
@@ -605,32 +495,30 @@ const BackupView = ({ backup }: { backup?: FlowDisplayInfo }) => {
             snapshotId: backup.snapshotID!,
           })
         );
-        alertApi!.success("Snapshot forgotten.");
+        alertApi!.success("快照已遗忘。");
       } catch (e) {
-        alertApi!.error("Failed to forget snapshot: " + e);
+        alertApi!.error("忘记快照失败: " + e);
       }
     };
-
     const snapshotInFlow = backup?.operations.find(
       (op) => op.op.case === "operationIndexSnapshot"
     );
-
     const deleteButton =
       snapshotInFlow && snapshotInFlow.snapshotId ? (
-        <Tooltip title="This will remove the snapshot from the repository. This is irreversible.">
+        <Tooltip title="这将从仓库中移除快照，此操作不可逆。">
           <ConfirmButton
             type="text"
-            confirmTitle="Confirm forget?"
+            confirmTitle="确认忘记？"
             confirmTimeout={2000}
             onClickAsync={doDeleteSnapshot}
           >
-            Forget (Destructive)
+            忘记（破坏性操作）
           </ConfirmButton>
         </Tooltip>
       ) : (
         <ConfirmButton
           type="text"
-          confirmTitle="Confirm clear?"
+          confirmTitle="确认清除？"
           onClickAsync={async () => {
             backrestService.clearHistory(
               create(ClearHistoryRequestSchema, {
@@ -641,10 +529,9 @@ const BackupView = ({ backup }: { backup?: FlowDisplayInfo }) => {
             );
           }}
         >
-          Delete Event
+          删除事件
         </ConfirmButton>
       );
-
     return (
       <div style={{ width: "100%" }}>
         <div
